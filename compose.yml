@@ -1,0 +1,69 @@
+version: '3.9'
+services:
+  db:
+    platform: linux/x86_64
+    image: mysql:8.0
+    container_name: db
+    hostname: db
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=app_development
+      - MYSQL_USER=app
+      - MYSQL_PASSWORD=app_password
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    command: /bin/bash -c 'rm -f tmp/pids/server.pid && bundle exec rails s -b 0.0.0.0'
+    ports:
+      - "43000:3000"
+    volumes:
+      - ./backend:/app
+    environment:
+      RAILS_ENV: development
+      DATABASE_HOST: db
+      DATABASE_USER: app
+      DATABASE_PASSWORD: app_password
+    depends_on:
+      db:
+        condition: service_healthy
+    hostname: backend
+
+  web:
+    build:
+      context: ./frontend/apps/web
+    container_name: web
+    command: pnpm dev
+    ports:
+      - "43001:3000"
+    volumes:
+      - ./frontend/apps/web:/app
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:3000
+    depends_on:
+      - backend
+
+  docs:
+    build:
+      context: ./frontend/apps/docs
+    container_name: docs
+    command: pnpm dev
+    ports:
+      - "43002:3000"
+    volumes:
+      - ./frontend/apps/docs:/app
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:3000
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
